@@ -1,0 +1,7 @@
+/target
+
+# Nixos Flakes w/ direnv
+/.direnv
+
+# Test Files
+/test

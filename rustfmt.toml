@@ -1,0 +1,22 @@
+unstable_features = true
+
+combine_control_expr = false
+hard_tabs = false
+normalize_comments = true
+format_strings = true
+format_macro_matchers = true
+format_macro_bodies = true
+fn_single_line = true
+imports_layout = "HorizontalVertical"
+imports_granularity = "Crate"
+enum_discrim_align_threshold = 15
+struct_field_align_threshold = 40
+inline_attribute_width = 30
+match_block_trailing_comma = true
+use_field_init_shorthand = true
+report_fixme = "Always"
+remove_nested_parens = true
+overflow_delimited_expr = true
+# needed to override my global setting
+use_small_heuristics = "Default"
+wrap_comments = true
