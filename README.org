@@ -1,0 +1,46 @@
+#+TITLE: Json Midi - Readme
+#+AUTHOR: HeapUnderflow
+
+* Json Midi
+Convert a Midi File to a Json Document (for easier consumption)
+
+** Help Page
+#+BEGIN_SRC shell :results verbatim :exports both
+cargo run -- --help
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+json_midi 0.1.0
+
+USAGE:
+    json_midi [FLAGS] [OPTIONS] <FILE>
+
+FLAGS:
+    -d, --delta      Emit timing information as a delta instead of an absolute timestamp
+    -h, --help       Prints help information
+    -m, --meta       Include meta events
+    -p, --pretty     Emit json prettified
+    -V, --version    Prints version information
+
+OPTIONS:
+    -o, --output <output>    File to write to, otherwise stdout
+
+ARGS:
+    <FILE>    The file to convert
+#+end_example
+
+** Oddities
+*** Corrupt / Invalid midi files
+The program will attempt to parse the midi file on a best-effort bases, shouldering through broken events and making a best effort at being "correct".
+If you want the program to abort on an invalid midi file, compile with `--feature "strict-parsing"`
+
+*** All Systex and Escape events will be dropped
+They are for communicating with actual hardware devices and would do no good here. If you *need* them included you can open an issue and we can see if we can work it out.
+
+*** "Ive included meta events and i have multiple end of track markers!"
+This is intended behavior, as parallel tracks just get merged. (You should stop after the first one anyway
+
+** License
+
+See [[file:LICENSE][LICENSE]]

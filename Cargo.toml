@@ -3,6 +3,9 @@ name = "json_midi"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+strict-parsing = ["midly/strict"]
+
 [dependencies]
 anyhow = "1.0.45"
 chrono = "0.4.19"
