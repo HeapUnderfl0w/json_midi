@@ -1,11 +1,10 @@
 #+TITLE: Json Midi - Readme
 #+AUTHOR: HeapUnderflow
 
-* Json Midi
 Convert a Midi File to a Json Document (for easier consumption)
 
 ** Help Page
-#+BEGIN_SRC shell :results verbatim :exports both
+#+BEGIN_SRC shell :results verbatim :exports results
 cargo run -- --help
 #+END_SRC
 
