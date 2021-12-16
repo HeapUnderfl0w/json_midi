@@ -28,6 +28,8 @@
             exa
             fd
             toolchain
+            valgrind
+            massif-visualizer
           ];
 
           shellHook = ''
