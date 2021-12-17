@@ -107,7 +107,6 @@ pub struct TimeInfo {
     pub tick:    u64,
     pub micros:  u64,
     pub seconds: f64,
-
 }
 
 #[derive(Debug, serde::Serialize)]
