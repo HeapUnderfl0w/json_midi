@@ -86,19 +86,46 @@ fn main() -> anyhow::Result<()> {
 #[derive(Debug)]
 pub struct Ignored;
 
+#[derive(Debug)]
+pub enum PlayerResult<T> {
+    Event(T),
+    Ignored,
+}
+
+impl<T> PlayerResult<T> {
+    pub fn map<U, F>(self, f: F) -> PlayerResult<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Event(e) => PlayerResult::Event((f)(e)),
+            Self::Ignored => PlayerResult::Ignored,
+        }
+    }
+}
+
+impl<T> From<Option<T>> for PlayerResult<T> {
+    fn from(other: Option<T>) -> Self {
+        match other {
+            Some(v) => Self::Event(v),
+            None => Self::Ignored,
+        }
+    }
+}
+
 pub struct MidiPlayerIter<'data, 'smf>(MidiPlayer<'data, 'smf>);
 
 impl<'data, 'smf> Iterator for MidiPlayerIter<'data, 'smf> {
-    type Item = Result<model::Event, Ignored>;
+    type Item = PlayerResult<model::Event>;
 
     fn next(&mut self) -> Option<Self::Item> { self.0.next_event() }
 }
 
 pub struct MidiPlayer<'data, 'smf> {
     emit_delta_times: bool,
-    emit_meta: bool,
-    timing:    PlayerTimingInfo,
-    events:    TrackMode<'data, 'smf>,
+    emit_meta:        bool,
+    timing:           PlayerTimingInfo,
+    events:           TrackMode<'data, 'smf>,
 }
 
 impl<'data, 'smf> IntoIterator for MidiPlayer<'data, 'smf> {
@@ -132,42 +159,44 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
         if self.emit_delta_times {
             TimeInfo {
-                tick: tinfo.delta_tick,
-                micros: tinfo.delta_micros,
-                seconds: tinfo.delta_micros as f64 / 1_000_000.0f64
+                tick:    tinfo.delta_tick,
+                micros:  tinfo.delta_micros,
+                seconds: tinfo.delta_micros as f64 / 1_000_000.0f64,
             }
         } else {
             TimeInfo {
-                tick: tinfo.abs_tick,
-                micros: tinfo.abs_micros,
-                seconds: tinfo.abs_micros as f64 / 1_000_000.0f64
+                tick:    tinfo.abs_tick,
+                micros:  tinfo.abs_micros,
+                seconds: tinfo.abs_micros as f64 / 1_000_000.0f64,
             }
         }
     }
 
-    pub fn next_event(&mut self) -> Option<Result<model::Event, Ignored>> {
+    pub fn next_event(&mut self) -> Option<PlayerResult<model::Event>> {
         if let Some(event) = self.events.next() {
             let time = self.make_time_info(event.real_delta as u64);
             return match event.event.kind {
                 midly::TrackEventKind::Midi { channel, message } => Some(
                     self.handle_event(channel.as_int(), message)
-                        .ok_or(Ignored)
                         .map(|v| model::Event::Midi { time, data: v }),
                 ),
                 // stop at first end-of-track
                 midly::TrackEventKind::Meta(midly::MetaMessage::EndOfTrack) => None,
                 midly::TrackEventKind::Meta(meta) => Some(
                     self.handle_meta(meta)
-                        .ok_or(Ignored)
                         .map(|v| model::Event::Meta { time, data: v }),
                 ),
-                _ => Some(Err(Ignored)), // systex and escape messages are ignored
+                _ => Some(PlayerResult::Ignored), // systex and escape messages are ignored
             };
         }
         None
     }
 
-    fn handle_event(&mut self, channel: u8, event: midly::MidiMessage) -> Option<model::MidiEvent> {
+    fn handle_event(
+        &mut self,
+        channel: u8,
+        event: midly::MidiMessage,
+    ) -> PlayerResult<model::MidiEvent> {
         let v = match event {
             midly::MidiMessage::NoteOff { key, vel } => MidiEvent::NoteOff {
                 chan:     channel,
@@ -202,10 +231,11 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 bend_by: bend.as_int(),
             },
         };
-        Some(v)
+
+        PlayerResult::Event(v)
     }
 
-    fn handle_meta(&mut self, meta: midly::MetaMessage) -> Option<model::MetaEvent> {
+    fn handle_meta(&mut self, meta: midly::MetaMessage) -> PlayerResult<model::MetaEvent> {
         let v = match meta {
             midly::MetaMessage::TrackNumber(tn) => MetaEvent::TrackNumber(tn),
             midly::MetaMessage::Text(tx) => MetaEvent::Text(Vec::from(tx)),
@@ -231,19 +261,19 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 self.timing.set_micros_per_qn(v as u64);
                 MetaEvent::Tempo(v)
             },
-            midly::MetaMessage::SmpteOffset(_) => return None,
+            midly::MetaMessage::SmpteOffset(_) => return PlayerResult::Ignored,
             midly::MetaMessage::TimeSignature(n, d, cpt, n32q) => {
                 MetaEvent::TimeSignature(n, d, cpt, n32q)
             },
             midly::MetaMessage::KeySignature(ksig, minor) => MetaEvent::KeySignature(ksig, minor),
-            midly::MetaMessage::SequencerSpecific(_) => return None,
+            midly::MetaMessage::SequencerSpecific(_) => return PlayerResult::Ignored,
             midly::MetaMessage::Unknown(event, data) => MetaEvent::Unknown(event, Vec::from(data)),
         };
 
         if !self.emit_meta {
-            return None;
+            return PlayerResult::Ignored;
         }
-        Some(v)
+        PlayerResult::Event(v)
     }
 }
 
@@ -281,10 +311,10 @@ impl Default for PlayerTimingInfo {
 }
 
 struct NextTickInfo {
-    delta_tick: u64,
+    delta_tick:   u64,
     delta_micros: u64,
-    abs_tick: u64,
-    abs_micros: u64
+    abs_tick:     u64,
+    abs_micros:   u64,
 }
 
 impl PlayerTimingInfo {
@@ -293,10 +323,10 @@ impl PlayerTimingInfo {
         self.offset_micros += new_t_off;
         self.offset_tick += delta;
         NextTickInfo {
-            delta_tick: delta,
+            delta_tick:   delta,
             delta_micros: new_t_off,
-            abs_tick: self.offset_tick,
-            abs_micros: self.offset_micros
+            abs_tick:     self.offset_tick,
+            abs_micros:   self.offset_micros,
         }
     }
 
