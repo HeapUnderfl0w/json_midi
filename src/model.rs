@@ -1,7 +1,4 @@
-use std::marker::PhantomData;
-
-use itertools::Itertools;
-use midly::{Smf, TrackEvent};
+use midly::TrackEvent;
 
 #[derive(Debug, serde::Serialize)]
 pub struct Track {
@@ -13,66 +10,6 @@ pub struct Track {
     pub events:           Vec<Event>,
 }
 
-pub struct TrackMode<'data, 'smf> {
-    event_index: usize,
-    it:          Box<dyn Iterator<Item = CDTrackEvent<'smf>> + 'data>,
-}
-
-impl<'data, 'smf> TrackMode<'data, 'smf> {
-    pub fn from_smf(smf: &'data Smf<'smf>) -> Self {
-        let iter: Box<dyn Iterator<Item = CDTrackEvent<'smf>> + 'data> = match smf.header.format {
-            midly::Format::SingleTrack => Box::new(smf.tracks[0].iter().map(|el| CDTrackEvent {
-                real_delta: el.delta.as_int() as usize,
-                event:      *el,
-            })),
-            midly::Format::Parallel => Box::new(
-                smf.tracks
-                    .iter()
-                    .map(|e| {
-                        let mut ioff = 0usize;
-                        e.iter().map(move |event| {
-                            ioff += event.delta.as_int() as usize;
-                            SortableTrackEvent {
-                                absolute_tick: ioff,
-                                tevent:        *event,
-                                _p:            &PhantomData,
-                            }
-                        })
-                    })
-                    .kmerge_by(|l, r| l < r)
-                    .repeat_first_n(1)
-                    .tuple_windows()
-                    .map(|(left, right)| CDTrackEvent {
-                        real_delta: right.absolute_tick - left.absolute_tick,
-                        event:      right.tevent,
-                    }),
-            ),
-            midly::Format::Sequential => {
-                Box::new(smf.tracks.iter().flatten().map(|el| CDTrackEvent {
-                    real_delta: el.delta.as_int() as usize,
-                    event:      *el,
-                }))
-            },
-        };
-
-        Self {
-            it:          iter,
-            event_index: 0,
-        }
-    }
-}
-
-impl<'data, 'smf> Iterator for TrackMode<'data, 'smf> {
-    type Item = CDTrackEvent<'smf>;
-
-    fn size_hint(&self) -> (usize, Option<usize>) { self.it.size_hint() }
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.event_index += 1;
-        self.it.next()
-    }
-}
-
 /// Event proxy containing an extra delta field that contains the correct delta
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct CDTrackEvent<'smf> {
@@ -80,18 +17,106 @@ pub struct CDTrackEvent<'smf> {
     pub event:      TrackEvent<'smf>,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct SortableTrackEvent<'smf> {
-    pub absolute_tick: usize,
-    pub tevent:        TrackEvent<'smf>,
-    _p:                &'smf PhantomData<Self>,
+#[derive(Debug)]
+pub enum PlayerResult<T> {
+    Event(T),
+    Ignored,
 }
 
-impl<'smf> PartialOrd for SortableTrackEvent<'smf> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // for sorting we *only* care about the absolute tick. the sorting *has* to be
-        // stable
-        self.absolute_tick.partial_cmp(&other.absolute_tick)
+impl<T> PlayerResult<T> {
+    pub fn map<U, F>(self, f: F) -> PlayerResult<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Event(e) => PlayerResult::Event((f)(e)),
+            Self::Ignored => PlayerResult::Ignored,
+        }
+    }
+}
+
+impl<T> From<Option<T>> for PlayerResult<T> {
+    fn from(other: Option<T>) -> Self {
+        match other {
+            Some(v) => Self::Event(v),
+            None => Self::Ignored,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PlayerTimingInfo {
+    offset_tick:    u64,
+    offset_micros:  u64,
+    // o-o-o-o-o-o-o-o-o-o
+    micros_per_qn:  u64,
+    ticks_per_beat: u64,
+
+    is_timecode:    bool,
+    nanos_per_tick: u64,
+}
+
+const MICROS_PER_SECOND: u64 = 1_000_000;
+impl Default for PlayerTimingInfo {
+    fn default() -> Self {
+        let mut s = Self {
+            offset_tick:   Default::default(),
+            offset_micros: Default::default(),
+
+            is_timecode: false,
+
+            // ticks in micros
+            nanos_per_tick: 0,
+
+            // default to 120 bpm
+            micros_per_qn:  500_000,
+            ticks_per_beat: 120,
+        };
+        s.recalc_ticklen();
+        s
+    }
+}
+
+#[derive(Debug)]
+pub struct NextTickInfo {
+    pub delta_tick:   u64,
+    pub delta_micros: u64,
+    pub abs_tick:     u64,
+    pub abs_micros:   u64,
+}
+
+impl PlayerTimingInfo {
+    pub fn next_tick(&mut self, delta: u64) -> NextTickInfo {
+        let new_t_off = self.nanos_per_tick * delta;
+        self.offset_micros += new_t_off;
+        self.offset_tick += delta;
+        NextTickInfo {
+            delta_tick:   delta,
+            delta_micros: new_t_off,
+            abs_tick:     self.offset_tick,
+            abs_micros:   self.offset_micros,
+        }
+    }
+
+    pub fn set_timecode(&mut self, fps: midly::Fps, tpf: u64) -> () {
+        self.is_timecode = true;
+        self.nanos_per_tick = MICROS_PER_SECOND / (fps.as_int() as u64 * tpf)
+    }
+
+    fn recalc_ticklen(&mut self) {
+        if !self.is_timecode {
+            self.nanos_per_tick = self.micros_per_qn / self.ticks_per_beat;
+        }
+    }
+
+    pub fn set_micros_per_qn(&mut self, mc: u64) {
+        self.micros_per_qn = mc;
+        self.recalc_ticklen();
+    }
+
+    pub fn set_ticks_per_beat(&mut self, tpb: u64) {
+        self.ticks_per_beat = tpb;
+        self.recalc_ticklen();
     }
 }
 
@@ -170,7 +195,7 @@ pub enum MetaEvent {
 
 /// Repeat the first element N times. For use with tools like
 /// `itertools::Iterator`
-struct RepeatFirstN<I>
+pub struct RepeatFirstN<I>
 where
     I: Iterator,
     <I as Iterator>::Item: Clone,
@@ -200,7 +225,7 @@ where
     }
 }
 
-trait RepeatFirst
+pub trait RepeatFirst
 where
     Self: Sized + Iterator,
     <Self as Iterator>::Item: Clone,
