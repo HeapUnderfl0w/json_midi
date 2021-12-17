@@ -32,13 +32,13 @@ ARGS:
 ** Oddities
 *** Corrupt / Invalid midi files
 The program will attempt to parse the midi file on a best-effort bases, shouldering through broken events and making a best effort at being "correct".
-If you want the program to abort on an invalid midi file, compile with `--feature "strict-parsing"`
+If you want the program to abort on an invalid midi file, compile with =--feature "strict-parsing"=
 
 *** All Systex and Escape events will be dropped
 They are for communicating with actual hardware devices and would do no good here. If you *need* them included you can open an issue and we can see if we can work it out.
 
 *** "Ive included meta events and i have multiple end of track markers!"
-This is intended behavior, as parallel tracks just get merged. (You should stop after the first one anyway
+This is intended behavior, as parallel tracks just get merged. (You should stop after the first one anyway)
 
 ** License
 
