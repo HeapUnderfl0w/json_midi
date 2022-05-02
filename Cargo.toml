@@ -1,7 +1,13 @@
 [package]
 name = "json_midi"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+
+[package.metadata.winres]
+ProductName = "Json Midi"
+FileDescription = "Convert Midi to Json"
+ProductVersion = "0.1.1"
+LegalCopyright = "Copyright © 2022 HeapUnderflow"
 
 [features]
 strict-parsing = ["midly/strict"]
@@ -19,3 +25,6 @@ structopt = "0.3.25"
 opt-level = 2
 codegen-units = 1
 lto = "fat"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

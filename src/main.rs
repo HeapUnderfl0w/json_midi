@@ -44,8 +44,23 @@ fn main() -> anyhow::Result<()> {
 
     let stdout = io::stdout();
 
-    let outfile: Box<dyn Write> = match args.output {
-        Some(f) => Box::new(fs::File::create(f).context("could not create output file")?),
+    let sd = match args.output {
+        Some(mut f) => {
+            let f1 = f.clone();
+
+            let fp = f.file_name().context("the filename cannot be ..")?.to_string_lossy().to_string();
+            f.pop();
+            let fpath = f.join(format!("{}.tmp", fp));
+
+            Some((fpath, f1))
+        },
+        None => None
+    };
+
+    let outfile: Box<dyn Write> = match sd.as_ref() {
+        Some((f, _)) => {
+            Box::new(fs::File::create(f).context("could not create output file")?)
+        }
         None => Box::new(stdout.lock()),
     };
 
@@ -80,6 +95,10 @@ fn main() -> anyhow::Result<()> {
         serde_json::to_writer_pretty(outfile, &track).context("failed to serialize data")?;
     } else {
         serde_json::to_writer(outfile, &track).context("failed to serialize data")?;
+    }
+
+    if let Some((s, d)) = sd {
+        fs::rename(s, d).context("failed to move tmp file over target")?;
     }
 
     Ok(())
