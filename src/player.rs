@@ -139,7 +139,9 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 chan:     channel,
                 velocity: vel.as_int(),
             },
-            midly::MidiMessage::PitchBend { bend: midly::PitchBend(bend) } => MidiEvent::PitchBend {
+            midly::MidiMessage::PitchBend {
+                bend: midly::PitchBend(bend),
+            } => MidiEvent::PitchBend {
                 chan:    channel,
                 bend_by: bend.as_int(),
             },

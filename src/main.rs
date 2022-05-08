@@ -48,19 +48,21 @@ fn main() -> anyhow::Result<()> {
         Some(mut f) => {
             let f1 = f.clone();
 
-            let fp = f.file_name().context("the filename cannot be ..")?.to_string_lossy().to_string();
+            let fp = f
+                .file_name()
+                .context("the filename cannot be ..")?
+                .to_string_lossy()
+                .to_string();
             f.pop();
             let fpath = f.join(format!("{}.tmp", fp));
 
             Some((fpath, f1))
         },
-        None => None
+        None => None,
     };
 
     let outfile: Box<dyn Write> = match sd.as_ref() {
-        Some((f, _)) => {
-            Box::new(fs::File::create(f).context("could not create output file")?)
-        }
+        Some((f, _)) => Box::new(fs::File::create(f).context("could not create output file")?),
         None => Box::new(stdout.lock()),
     };
 
