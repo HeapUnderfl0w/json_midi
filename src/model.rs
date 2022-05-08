@@ -167,7 +167,7 @@ pub enum MidiEvent {
     },
     PitchBend {
         chan:    u8,
-        bend_by: i16,
+        bend_by: u16,
     },
 }
 
