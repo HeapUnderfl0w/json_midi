@@ -1,5 +1,5 @@
 {
-  description = "listbot - Discord Bot";
+  description = "Rust Development Overlay";
 
   inputs = {
     nixpkgs.url      = "github:nixos/nixpkgs/nixos-unstable";
@@ -15,10 +15,9 @@
           inherit system overlays;
         };
 
-        toolchain = pkgs.rust-bin.fromRustupToolchain {
-          channel = "nightly-2021-11-01";
-          components = [ "clippy" "rustfmt" "rust-src" ];
-        };
+        toolchain = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
+          extensions = [ "clippy" "rustfmt" "rust-src" "rust-analyzer-preview" ];
+        });
       in
       {
         devShell = pkgs.mkShell {
