@@ -43,6 +43,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
     pub fn make_time_info(&mut self, delta: u64) -> TimeInfo {
         let tinfo = self.timing.next_tick(self.extra_delta + delta);
+
         self.extra_delta = 0;
 
         macro_rules! round {
@@ -53,13 +54,13 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             TimeInfo {
                 tick:    tinfo.delta_tick,
                 micros:  round!(tinfo.delta_micros, u64),
-                seconds: round!(tinfo.delta_micros as f64 / 1_000_000.0f64, f32),
+                seconds: (tinfo.delta_micros as f64 / 1_000_000.0f64) as f32,
             }
         } else {
             TimeInfo {
                 tick:    tinfo.abs_tick,
                 micros:  round!(tinfo.abs_micros, u64),
-                seconds: round!(tinfo.abs_micros as f64 / 1_000_000.0f64, f32),
+                seconds: (tinfo.abs_micros as f64 / 1_000_000.0f64) as f32,
             }
         }
     }
