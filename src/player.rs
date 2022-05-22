@@ -32,20 +32,13 @@ impl<'data, 'smf> IntoIterator for MidiPlayer<'data, 'smf> {
 impl<'data, 'smf> MidiPlayer<'data, 'smf> {
     pub fn new(smf: &'data Smf<'smf>, emit_meta: bool, delta_times: bool) -> Self {
         let timing = smf.header.timing.clone();
-        let mut e = Self {
+        Self {
             emit_meta,
             emit_delta_times: delta_times,
             extra_delta: 0,
             events: TrackMode::from_smf(smf),
-            timing: Default::default(),
-        };
-
-        match timing {
-            midly::Timing::Metrical(mt) => e.timing.set_ticks_per_beat(mt.as_int() as u64),
-            midly::Timing::Timecode(fps, tpf) => e.timing.set_timecode(fps, tpf.into()),
+            timing: PlayerTimingInfo::from(timing),
         }
-
-        e
     }
 
     pub fn make_time_info(&mut self, delta: u64) -> TimeInfo {
@@ -173,7 +166,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             midly::MetaMessage::EndOfTrack => MetaEvent::EndOfTrack,
             midly::MetaMessage::Tempo(tpb) => {
                 let v = tpb.as_int();
-                self.timing.set_micros_per_qn(v as u64);
+                self.timing.update_mpt(v as u64);
                 MetaEvent::Tempo(v)
             },
             midly::MetaMessage::SmpteOffset(_) => return PlayerResult::Ignored,

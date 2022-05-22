@@ -44,80 +44,65 @@ impl<T> From<Option<T>> for PlayerResult<T> {
     }
 }
 
-#[derive(Debug)]
+const MICROS_PER_SECOND: u64 = 1_000_000;
 pub struct PlayerTimingInfo {
-    offset_tick:    u64,
-    offset_micros:  u64,
-    // o-o-o-o-o-o-o-o-o-o
-    micros_per_qn:  u64,
-    ticks_per_beat: u64,
+    // state
+    current_tick: u64,
 
-    is_timecode:    bool,
-    nanos_per_tick: u64,
+    // timing data
+    timing_data: TimingData
 }
 
-const MICROS_PER_SECOND: u64 = 1_000_000;
-impl Default for PlayerTimingInfo {
-    fn default() -> Self {
-        let mut s = Self {
-            offset_tick:   Default::default(),
-            offset_micros: Default::default(),
+impl PlayerTimingInfo {
+    pub fn next_tick(&mut self, delta: u64) -> NextTickInfo {
+        self.current_tick += delta;
+        NextTickInfo {
+            delta_tick: delta,
+            delta_micros: self.timing_data.get_len(delta),
+            abs_tick: self.current_tick,
+            abs_micros: self.timing_data.get_len(self.current_tick)
+        }
+    }
 
-            is_timecode: false,
+    pub fn update_mpt(&mut self, npt: u64) {
+        if let TimingData::Metric { ppqn, npt: _ } = self.timing_data {
+            self.timing_data = TimingData::Metric { ppqn, npt: npt as f64 }
+        }
+    }
+}
 
-            // ticks in micros
-            nanos_per_tick: 0,
-
-            // default to 120 bpm
-            micros_per_qn:  500_000,
-            ticks_per_beat: 120,
+impl From<midly::Timing> for PlayerTimingInfo {
+    fn from(t: midly::Timing) -> Self {
+        let td = match t {
+            midly::Timing::Metrical(ppqn) => TimingData::Metric { ppqn: ppqn.as_int() as f64, npt: 500_000f64 },
+            midly::Timing::Timecode(fps, npt) => TimingData::Fps { fps: fps.as_f32(), tpf: npt },
         };
-        s.recalc_ticklen();
-        s
+
+        PlayerTimingInfo { current_tick: 0, timing_data: td }
+    }
+}
+
+#[derive(Debug)]
+pub enum TimingData {
+    Fps { fps: f32, tpf: u8  },
+    Metric { ppqn: f64, npt: f64 }
+}
+
+impl TimingData {
+    pub fn get_len(&self, ticks: u64) -> f64 {
+        match self {
+            TimingData::Fps { fps, tpf } => (MICROS_PER_SECOND as f64 / *fps as f64 / *tpf as f64) * ticks as f64,
+            TimingData::Metric { ppqn, npt } => (npt/ppqn) * ticks as f64,
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct NextTickInfo {
     pub delta_tick:   u64,
-    pub delta_micros: u64,
+    pub delta_micros: f64,
     pub abs_tick:     u64,
-    pub abs_micros:   u64,
-}
-
-impl PlayerTimingInfo {
-    pub fn next_tick(&mut self, delta: u64) -> NextTickInfo {
-        let new_t_off = self.nanos_per_tick * delta;
-        self.offset_micros += new_t_off;
-        self.offset_tick += delta;
-        NextTickInfo {
-            delta_tick:   delta,
-            delta_micros: new_t_off,
-            abs_tick:     self.offset_tick,
-            abs_micros:   self.offset_micros,
-        }
-    }
-
-    pub fn set_timecode(&mut self, fps: midly::Fps, tpf: u64) -> () {
-        self.is_timecode = true;
-        self.nanos_per_tick = MICROS_PER_SECOND / (fps.as_int() as u64 * tpf)
-    }
-
-    fn recalc_ticklen(&mut self) {
-        if !self.is_timecode {
-            self.nanos_per_tick = self.micros_per_qn / self.ticks_per_beat;
-        }
-    }
-
-    pub fn set_micros_per_qn(&mut self, mc: u64) {
-        self.micros_per_qn = mc;
-        self.recalc_ticklen();
-    }
-
-    pub fn set_ticks_per_beat(&mut self, tpb: u64) {
-        self.ticks_per_beat = tpb;
-        self.recalc_ticklen();
-    }
+    pub abs_micros:   f64,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -130,7 +115,7 @@ pub enum Event {
 #[derive(Debug, serde::Serialize)]
 pub struct TimeInfo {
     pub tick:    u64,
-    pub micros:  u64,
+    pub micros:  f64,
     pub seconds: f64,
 }
 
