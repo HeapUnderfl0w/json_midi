@@ -115,8 +115,8 @@ pub enum Event {
 #[derive(Debug, serde::Serialize)]
 pub struct TimeInfo {
     pub tick:    u64,
-    pub micros:  f64,
-    pub seconds: f64,
+    pub micros:  u64,
+    pub seconds: f32,
 }
 
 #[derive(Debug, serde::Serialize)]

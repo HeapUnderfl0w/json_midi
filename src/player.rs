@@ -45,17 +45,21 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
         let tinfo = self.timing.next_tick(self.extra_delta + delta);
         self.extra_delta = 0;
 
+        macro_rules! round {
+            ($e:expr, $t:ty) => { if ($e.fract() >= 0.5) { $e.ceil() } else {$e.floor() } as $t }
+        }
+
         if self.emit_delta_times {
             TimeInfo {
                 tick:    tinfo.delta_tick,
-                micros:  tinfo.delta_micros,
-                seconds: tinfo.delta_micros as f64 / 1_000_000.0f64,
+                micros:  round!(tinfo.delta_micros, u64),
+                seconds: round!(tinfo.delta_micros as f64 / 1_000_000.0f64, f32),
             }
         } else {
             TimeInfo {
                 tick:    tinfo.abs_tick,
-                micros:  tinfo.abs_micros,
-                seconds: tinfo.abs_micros as f64 / 1_000_000.0f64,
+                micros:  round!(tinfo.abs_micros, u64),
+                seconds: round!(tinfo.abs_micros as f64 / 1_000_000.0f64, f32),
             }
         }
     }
