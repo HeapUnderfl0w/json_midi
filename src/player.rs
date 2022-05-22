@@ -170,7 +170,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             midly::MetaMessage::EndOfTrack => MetaEvent::EndOfTrack,
             midly::MetaMessage::Tempo(tpb) => {
                 let v = tpb.as_int();
-                self.timing.update_mpt(v as u64);
+                self.timing.update_mpt(v as u32);
                 MetaEvent::Tempo(v)
             },
             midly::MetaMessage::SmpteOffset(_) => return PlayerResult::Ignored,

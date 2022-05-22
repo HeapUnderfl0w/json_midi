@@ -48,6 +48,7 @@ const MICROS_PER_SECOND: u64 = 1_000_000;
 pub struct PlayerTimingInfo {
     // state
     current_tick: u64,
+    current_ms: f64,
 
     // timing data
     timing_data: TimingData
@@ -55,17 +56,21 @@ pub struct PlayerTimingInfo {
 
 impl PlayerTimingInfo {
     pub fn next_tick(&mut self, delta: u64) -> NextTickInfo {
+        let delta_len = self.timing_data.get_len(delta);
+
         self.current_tick += delta;
+        self.current_ms += delta_len;
+
         NextTickInfo {
             delta_tick: delta,
-            delta_micros: self.timing_data.get_len(delta),
+            delta_micros: delta_len,
             abs_tick: self.current_tick,
-            abs_micros: self.timing_data.get_len(self.current_tick)
+            abs_micros: self.current_ms
         }
     }
 
-    pub fn update_mpt(&mut self, npt: u64) {
-        if let TimingData::Metric { ppqn, npt: _ } = self.timing_data {
+    pub fn update_mpt(&mut self, npt: u32) {
+        if let TimingData::Metric { ppqn, .. } = self.timing_data {
             self.timing_data = TimingData::Metric { ppqn, npt: npt as f64 }
         }
     }
@@ -78,7 +83,7 @@ impl From<midly::Timing> for PlayerTimingInfo {
             midly::Timing::Timecode(fps, npt) => TimingData::Fps { fps: fps.as_f32(), tpf: npt },
         };
 
-        PlayerTimingInfo { current_tick: 0, timing_data: td }
+        PlayerTimingInfo { current_tick: 0, current_ms: 0.0, timing_data: td }
     }
 }
 
