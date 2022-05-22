@@ -34,6 +34,10 @@ struct Args {
     /// The file to convert
     #[structopt(name = "FILE", parse(from_os_str))]
     midi_file: PathBuf,
+
+    /// Dump the parsed object instead of scanning events
+    #[structopt(long)]
+    dump: bool
 }
 
 fn main() -> anyhow::Result<()> {
@@ -65,6 +69,13 @@ fn main() -> anyhow::Result<()> {
         Some((f, _)) => Box::new(fs::File::create(f).context("could not create output file")?),
         None => Box::new(stdout.lock()),
     };
+
+    if args.dump {
+        // rebind outfile as mutable
+        let mut outfile = outfile;
+        write!(outfile, "{:#?}", smf).context("write failed")?;
+        return Ok(());
+    }
 
     let player = MidiPlayer::new(&smf, args.meta, args.delta);
 
