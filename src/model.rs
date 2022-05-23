@@ -44,7 +44,7 @@ impl<T> From<Option<T>> for PlayerResult<T> {
     }
 }
 
-const MICROS_PER_SECOND: u64 = 1_000_000;
+pub const MICROS_PER_SECOND: u64 = 1_000_000;
 pub struct PlayerTimingInfo {
     // state
     current_tick: u64,
@@ -69,10 +69,8 @@ impl PlayerTimingInfo {
         }
     }
 
-    pub fn update_mpt(&mut self, delta: u64, npt: u32) {
+    pub fn update_mpt(&mut self, npt: u32) {
         if let TimingData::Metric { ppqn, .. } = self.timing_data {
-            self.current_tick += delta;
-            self.current_ms += self.timing_data.get_len(delta);
             self.timing_data = TimingData::Metric { ppqn, npt: npt as f64 }
         }
     }
