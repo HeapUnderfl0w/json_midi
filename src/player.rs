@@ -95,7 +95,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 },
                 _ => {
                     // systex and escape messages are ignored
-                    self.extra_delta = event.real_delta as u64;
+                    self.extra_delta += event.real_delta as u64;
                     Some(PlayerResult::Ignored)
                 },
             };
