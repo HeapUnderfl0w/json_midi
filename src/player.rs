@@ -80,7 +80,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                     self.extra_delta += event.real_delta as u64;
                     Some(PlayerResult::Ignored)
                 },
-                midly::TrackEventKind::Meta(meta) => match self.handle_meta(meta) {
+                midly::TrackEventKind::Meta(meta) => match self.handle_meta(event.real_delta as u64, meta) {
                     PlayerResult::Event(mevent) => {
                         let time = self.make_time_info(event.real_delta as u64);
                         Some(PlayerResult::Event(model::Event::Meta {
@@ -148,7 +148,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
         PlayerResult::Event(v)
     }
 
-    fn handle_meta(&mut self, meta: midly::MetaMessage) -> PlayerResult<model::MetaEvent> {
+    fn handle_meta(&mut self, d: u64, meta: midly::MetaMessage) -> PlayerResult<model::MetaEvent> {
         let v = match meta {
             midly::MetaMessage::TrackNumber(tn) => MetaEvent::TrackNumber(tn),
             midly::MetaMessage::Text(tx) => MetaEvent::Text(Vec::from(tx)),
@@ -171,7 +171,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             midly::MetaMessage::EndOfTrack => MetaEvent::EndOfTrack,
             midly::MetaMessage::Tempo(tpb) => {
                 let v = tpb.as_int();
-                self.timing.update_mpt(v as u32);
+                self.timing.update_mpt(d, v as u32);
                 MetaEvent::Tempo(v)
             },
             midly::MetaMessage::SmpteOffset(_) => return PlayerResult::Ignored,
