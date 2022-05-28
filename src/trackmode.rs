@@ -12,9 +12,9 @@ impl<'data, 'smf> TrackMode<'data, 'smf> {
     pub fn from_smf(smf: &'data Smf<'smf>) -> Self {
         let iter: Box<dyn Iterator<Item = CDTrackEvent<'smf>> + 'data> = match smf.header.format {
             midly::Format::SingleTrack => Box::new(smf.tracks[0].iter().map(|el| CDTrackEvent {
-                real_delta: el.delta.as_int() as usize,
-                event:      *el,
-                source_track: 0
+                real_delta:   el.delta.as_int() as usize,
+                event:        *el,
+                source_track: 0,
             })),
             midly::Format::Parallel => Box::new(
                 smf.tracks
@@ -36,18 +36,18 @@ impl<'data, 'smf> TrackMode<'data, 'smf> {
                     .repeat_first_n(1)
                     .tuple_windows()
                     .map(|(left, right)| CDTrackEvent {
-                        real_delta: right.absolute_tick - left.absolute_tick,
-                        event:      right.tevent,
-                        source_track:      right.track
+                        real_delta:   right.absolute_tick - left.absolute_tick,
+                        event:        right.tevent,
+                        source_track: right.track,
                     }),
             ),
-            midly::Format::Sequential => {
-                Box::new(smf.tracks.iter().flatten().enumerate().map(|(idx, el)| CDTrackEvent {
-                    real_delta: el.delta.as_int() as usize,
-                    event:      *el,
-                    source_track: idx as u32
-                }))
-            },
+            midly::Format::Sequential => Box::new(smf.tracks.iter().flatten().enumerate().map(
+                |(idx, el)| CDTrackEvent {
+                    real_delta:   el.delta.as_int() as usize,
+                    event:        *el,
+                    source_track: idx as u32,
+                },
+            )),
         };
 
         Self {
@@ -71,7 +71,7 @@ impl<'data, 'smf> Iterator for TrackMode<'data, 'smf> {
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct SortableTrackEvent<'smf> {
     pub absolute_tick: usize,
-    pub track: u32,
+    pub track:         u32,
     pub tevent:        TrackEvent<'smf>,
     _p:                &'smf PhantomData<Self>,
 }

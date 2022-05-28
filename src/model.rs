@@ -13,9 +13,9 @@ pub struct Track {
 /// Event proxy containing an extra delta field that contains the correct delta
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct CDTrackEvent<'smf> {
-    pub real_delta: usize,
+    pub real_delta:   usize,
     pub source_track: u32,
-    pub event:      TrackEvent<'smf>,
+    pub event:        TrackEvent<'smf>,
 }
 
 #[derive(Debug)]
@@ -49,10 +49,10 @@ pub const MICROS_PER_SECOND: u64 = 1_000_000;
 pub struct PlayerTimingInfo {
     // state
     current_tick: u64,
-    current_ms: f64,
+    current_ms:   f64,
 
     // timing data
-    timing_data: TimingData
+    timing_data: TimingData,
 }
 
 impl PlayerTimingInfo {
@@ -63,16 +63,19 @@ impl PlayerTimingInfo {
         self.current_ms += delta_len;
 
         NextTickInfo {
-            delta_tick: delta,
+            delta_tick:   delta,
             delta_micros: delta_len,
-            abs_tick: self.current_tick,
-            abs_micros: self.current_ms
+            abs_tick:     self.current_tick,
+            abs_micros:   self.current_ms,
         }
     }
 
     pub fn update_mpt(&mut self, npt: u32) {
         if let TimingData::Metric { ppqn, .. } = self.timing_data {
-            self.timing_data = TimingData::Metric { ppqn, npt: npt as f64 }
+            self.timing_data = TimingData::Metric {
+                ppqn,
+                npt: npt as f64,
+            }
         }
     }
 }
@@ -80,25 +83,37 @@ impl PlayerTimingInfo {
 impl From<midly::Timing> for PlayerTimingInfo {
     fn from(t: midly::Timing) -> Self {
         let td = match t {
-            midly::Timing::Metrical(ppqn) => TimingData::Metric { ppqn: ppqn.as_int() as f64, npt: 500_000f64 },
-            midly::Timing::Timecode(fps, npt) => TimingData::Fps { fps: fps.as_f32(), tpf: npt },
+            midly::Timing::Metrical(ppqn) => TimingData::Metric {
+                ppqn: ppqn.as_int() as f64,
+                npt:  500_000f64,
+            },
+            midly::Timing::Timecode(fps, npt) => TimingData::Fps {
+                fps: fps.as_f32(),
+                tpf: npt,
+            },
         };
 
-        PlayerTimingInfo { current_tick: 0, current_ms: 0.0, timing_data: td }
+        PlayerTimingInfo {
+            current_tick: 0,
+            current_ms:   0.0,
+            timing_data:  td,
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum TimingData {
-    Fps { fps: f32, tpf: u8  },
-    Metric { ppqn: f64, npt: f64 }
+    Fps { fps: f32, tpf: u8 },
+    Metric { ppqn: f64, npt: f64 },
 }
 
 impl TimingData {
     pub fn get_len(&self, ticks: u64) -> f64 {
         match self {
-            TimingData::Fps { fps, tpf } => (MICROS_PER_SECOND as f64 / *fps as f64 / *tpf as f64) * ticks as f64,
-            TimingData::Metric { ppqn, npt } => (npt/ppqn) * ticks as f64,
+            TimingData::Fps { fps, tpf } => {
+                (MICROS_PER_SECOND as f64 / *fps as f64 / *tpf as f64) * ticks as f64
+            },
+            TimingData::Metric { ppqn, npt } => (npt / ppqn) * ticks as f64,
         }
     }
 }
@@ -114,8 +129,16 @@ pub struct NextTickInfo {
 #[derive(Debug, serde::Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum Event {
-    Midi { time: TimeInfo, data: MidiEvent, track: u32 },
-    Meta { time: TimeInfo, data: MetaEvent, track: u32 },
+    Midi {
+        time:  TimeInfo,
+        data:  MidiEvent,
+        track: u32,
+    },
+    Meta {
+        time:  TimeInfo,
+        data:  MetaEvent,
+        track: u32,
+    },
 }
 
 #[derive(Debug, serde::Serialize)]

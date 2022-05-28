@@ -1,7 +1,7 @@
 use midly::Smf;
 
 use crate::{
-    model::{self, MetaEvent, MidiEvent, PlayerResult, PlayerTimingInfo, TimeInfo, CDTrackEvent},
+    model::{self, CDTrackEvent, MetaEvent, MidiEvent, PlayerResult, PlayerTimingInfo, TimeInfo},
     trackmode::TrackMode,
 };
 
@@ -47,19 +47,34 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
     fn _next_event(&mut self, event: CDTrackEvent) -> PlayerResult<model::Event> {
         match event.event.kind {
-            midly::TrackEventKind::Midi { channel, message } => self.handle_midi(event.source_track, channel.as_int(), message, event.real_delta as u64),
-            midly::TrackEventKind::SysEx(data) => self.handle_sysex(event.source_track, data, event.real_delta as u64),
-            midly::TrackEventKind::Escape(data) => self.handle_escape(event.source_track, data, event.real_delta as u64),
-            midly::TrackEventKind::Meta(message) => self.handle_meta(event.source_track, message, event.real_delta as u64),
+            midly::TrackEventKind::Midi { channel, message } => self.handle_midi(
+                event.source_track,
+                channel.as_int(),
+                message,
+                event.real_delta as u64,
+            ),
+            midly::TrackEventKind::SysEx(data) => {
+                self.handle_sysex(event.source_track, data, event.real_delta as u64)
+            },
+            midly::TrackEventKind::Escape(data) => {
+                self.handle_escape(event.source_track, data, event.real_delta as u64)
+            },
+            midly::TrackEventKind::Meta(message) => {
+                self.handle_meta(event.source_track, message, event.real_delta as u64)
+            },
         }
     }
 
     pub fn make_time_info(&mut self, delta: u64) -> TimeInfo {
         macro_rules! micros_to_secs {
-           ($e:expr) => {{
-               let __value = ($e as f64 / crate::model::MICROS_PER_SECOND as f64);
-               (if (__value.fract() >= 0.5) { __value.ceil() } else { __value.floor() }) as f32
-           }};
+            ($e:expr) => {{
+                let __value = ($e as f64 / crate::model::MICROS_PER_SECOND as f64);
+                (if (__value.fract() >= 0.5) {
+                    __value.ceil()
+                } else {
+                    __value.floor()
+                }) as f32
+            }};
         }
 
         let time_info = self.timing.next_tick(self.extra_delta + delta);
@@ -67,20 +82,26 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
         if self.emit_delta_times {
             TimeInfo {
-                tick: time_info.delta_tick,
-                micros: time_info.delta_micros as u64,
-                seconds: micros_to_secs!(time_info.delta_micros)
+                tick:    time_info.delta_tick,
+                micros:  time_info.delta_micros as u64,
+                seconds: micros_to_secs!(time_info.delta_micros),
             }
         } else {
             TimeInfo {
-                tick: time_info.abs_tick,
-                micros: time_info.abs_micros as u64,
-                seconds: micros_to_secs!(time_info.abs_micros)
+                tick:    time_info.abs_tick,
+                micros:  time_info.abs_micros as u64,
+                seconds: micros_to_secs!(time_info.abs_micros),
             }
         }
     }
 
-    fn handle_midi(&mut self, track: u32, channel: u8, message: midly::MidiMessage, delta: u64) -> PlayerResult<model::Event> {
+    fn handle_midi(
+        &mut self,
+        track: u32,
+        channel: u8,
+        message: midly::MidiMessage,
+        delta: u64,
+    ) -> PlayerResult<model::Event> {
         let converted_msg = match message {
             midly::MidiMessage::NoteOff { key, vel } => MidiEvent::NoteOff {
                 chan:     channel,
@@ -120,35 +141,64 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
         let time = self.make_time_info(delta);
 
-        PlayerResult::Event(model::Event::Midi { time, data: converted_msg, track })
+        PlayerResult::Event(model::Event::Midi {
+            time,
+            data: converted_msg,
+            track,
+        })
     }
-    fn handle_meta(&mut self, track: u32, message: midly::MetaMessage, delta: u64) -> PlayerResult<model::Event> {
+    fn handle_meta(
+        &mut self,
+        track: u32,
+        message: midly::MetaMessage,
+        delta: u64,
+    ) -> PlayerResult<model::Event> {
         let parsed = match message {
             // normal meta messages, only emitted when emit_meta
-            midly::MetaMessage::TrackNumber(tn) if self.emit_meta => Some(MetaEvent::TrackNumber(tn)),
-            midly::MetaMessage::Text(tx) if self.emit_meta  => Some(MetaEvent::Text(Vec::from(tx))),
-            midly::MetaMessage::Copyright(cp_text) if self.emit_meta  => Some(MetaEvent::Copyright(Vec::from(cp_text))),
-            midly::MetaMessage::TrackName(tn) if self.emit_meta  => Some(MetaEvent::TrackName(Vec::from(tn))),
+            midly::MetaMessage::TrackNumber(tn) if self.emit_meta => {
+                Some(MetaEvent::TrackNumber(tn))
+            },
+            midly::MetaMessage::Text(tx) if self.emit_meta => Some(MetaEvent::Text(Vec::from(tx))),
+            midly::MetaMessage::Copyright(cp_text) if self.emit_meta => {
+                Some(MetaEvent::Copyright(Vec::from(cp_text)))
+            },
+            midly::MetaMessage::TrackName(tn) if self.emit_meta => {
+                Some(MetaEvent::TrackName(Vec::from(tn)))
+            },
             midly::MetaMessage::InstrumentName(iname) => {
                 Some(MetaEvent::InstrumentName(Vec::from(iname)))
             },
-            midly::MetaMessage::Lyric(lyric) if self.emit_meta  => Some(MetaEvent::Lyric(Vec::from(lyric))),
-            midly::MetaMessage::Marker(marker) if self.emit_meta  => Some(MetaEvent::Marker(Vec::from(marker))),
-            midly::MetaMessage::CuePoint(cue_point) if self.emit_meta  => Some(MetaEvent::CuePoint(Vec::from(cue_point))),
-            midly::MetaMessage::ProgramName(program_name) if self.emit_meta  => {
+            midly::MetaMessage::Lyric(lyric) if self.emit_meta => {
+                Some(MetaEvent::Lyric(Vec::from(lyric)))
+            },
+            midly::MetaMessage::Marker(marker) if self.emit_meta => {
+                Some(MetaEvent::Marker(Vec::from(marker)))
+            },
+            midly::MetaMessage::CuePoint(cue_point) if self.emit_meta => {
+                Some(MetaEvent::CuePoint(Vec::from(cue_point)))
+            },
+            midly::MetaMessage::ProgramName(program_name) if self.emit_meta => {
                 Some(MetaEvent::ProgramName(Vec::from(program_name)))
             },
-            midly::MetaMessage::DeviceName(device_name) if self.emit_meta  => {
+            midly::MetaMessage::DeviceName(device_name) if self.emit_meta => {
                 Some(MetaEvent::DeviceName(Vec::from(device_name)))
             },
-            midly::MetaMessage::MidiChannel(mchan) if self.emit_meta  => Some(MetaEvent::MidiChannel(mchan.as_int())),
-            midly::MetaMessage::MidiPort(mprt) if self.emit_meta  => Some(MetaEvent::MidiPort(mprt.as_int())),
+            midly::MetaMessage::MidiChannel(mchan) if self.emit_meta => {
+                Some(MetaEvent::MidiChannel(mchan.as_int()))
+            },
+            midly::MetaMessage::MidiPort(mprt) if self.emit_meta => {
+                Some(MetaEvent::MidiPort(mprt.as_int()))
+            },
             midly::MetaMessage::EndOfTrack if self.emit_meta => Some(MetaEvent::EndOfTrack),
             midly::MetaMessage::TimeSignature(n, d, cpt, n32q) if self.emit_meta => {
                 Some(MetaEvent::TimeSignature(n, d, cpt, n32q))
             },
-            midly::MetaMessage::KeySignature(ksig, minor) if self.emit_meta => Some(MetaEvent::KeySignature(ksig, minor)),
-            midly::MetaMessage::Unknown(event, data) if self.emit_meta => Some(MetaEvent::Unknown(event, Vec::from(data))),
+            midly::MetaMessage::KeySignature(ksig, minor) if self.emit_meta => {
+                Some(MetaEvent::KeySignature(ksig, minor))
+            },
+            midly::MetaMessage::Unknown(event, data) if self.emit_meta => {
+                Some(MetaEvent::Unknown(event, Vec::from(data)))
+            },
 
             // explicitly ignored meta messages
             midly::MetaMessage::SmpteOffset(_) => None,
@@ -160,14 +210,18 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 let time = self.make_time_info(delta);
                 self.timing.update_mpt(tpb.as_int());
                 if self.emit_meta {
-                    return PlayerResult::Event(model::Event::Meta { time, track, data: MetaEvent::Tempo(tpb.as_int()) });
+                    return PlayerResult::Event(model::Event::Meta {
+                        time,
+                        track,
+                        data: MetaEvent::Tempo(tpb.as_int()),
+                    });
                 } else {
                     return PlayerResult::Ignored;
                 }
             },
 
             // all remaining messages when !self.emit_meta
-            _ => None
+            _ => None,
         };
 
         match parsed {
@@ -177,15 +231,29 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             },
             Some(event) => {
                 let time = self.make_time_info(delta);
-                PlayerResult::Event(model::Event::Meta { time, track, data: event })
-            }
+                PlayerResult::Event(model::Event::Meta {
+                    time,
+                    track,
+                    data: event,
+                })
+            },
         }
     }
-    fn handle_escape(&mut self, _track: u32, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
+    fn handle_escape(
+        &mut self,
+        _track: u32,
+        _data: &[u8],
+        delta: u64,
+    ) -> PlayerResult<model::Event> {
         self.extra_delta += delta;
         PlayerResult::Ignored
     }
-    fn handle_sysex(&mut self, _track: u32, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
+    fn handle_sysex(
+        &mut self,
+        _track: u32,
+        _data: &[u8],
+        delta: u64,
+    ) -> PlayerResult<model::Event> {
         self.extra_delta += delta;
         PlayerResult::Ignored
     }

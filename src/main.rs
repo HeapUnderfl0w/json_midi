@@ -37,7 +37,7 @@ struct Args {
 
     /// Dump the parsed object instead of scanning events
     #[structopt(long)]
-    dump: bool
+    dump: bool,
 }
 
 fn main() -> anyhow::Result<()> {
