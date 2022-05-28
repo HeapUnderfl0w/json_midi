@@ -14,16 +14,19 @@ impl<'data, 'smf> TrackMode<'data, 'smf> {
             midly::Format::SingleTrack => Box::new(smf.tracks[0].iter().map(|el| CDTrackEvent {
                 real_delta: el.delta.as_int() as usize,
                 event:      *el,
+                source_track: 0
             })),
             midly::Format::Parallel => Box::new(
                 smf.tracks
                     .iter()
-                    .map(|e| {
+                    .enumerate()
+                    .map(|(idx, e)| {
                         let mut ioff = 0usize;
                         e.iter().map(move |event| {
                             ioff += event.delta.as_int() as usize;
                             SortableTrackEvent {
                                 absolute_tick: ioff,
+                                track:         idx as u32,
                                 tevent:        *event,
                                 _p:            &PhantomData,
                             }
@@ -35,12 +38,14 @@ impl<'data, 'smf> TrackMode<'data, 'smf> {
                     .map(|(left, right)| CDTrackEvent {
                         real_delta: right.absolute_tick - left.absolute_tick,
                         event:      right.tevent,
+                        source_track:      right.track
                     }),
             ),
             midly::Format::Sequential => {
-                Box::new(smf.tracks.iter().flatten().map(|el| CDTrackEvent {
+                Box::new(smf.tracks.iter().flatten().enumerate().map(|(idx, el)| CDTrackEvent {
                     real_delta: el.delta.as_int() as usize,
                     event:      *el,
+                    source_track: idx as u32
                 }))
             },
         };
@@ -66,6 +71,7 @@ impl<'data, 'smf> Iterator for TrackMode<'data, 'smf> {
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct SortableTrackEvent<'smf> {
     pub absolute_tick: usize,
+    pub track: u32,
     pub tevent:        TrackEvent<'smf>,
     _p:                &'smf PhantomData<Self>,
 }

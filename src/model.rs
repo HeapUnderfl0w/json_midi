@@ -14,6 +14,7 @@ pub struct Track {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct CDTrackEvent<'smf> {
     pub real_delta: usize,
+    pub source_track: u32,
     pub event:      TrackEvent<'smf>,
 }
 
@@ -113,8 +114,8 @@ pub struct NextTickInfo {
 #[derive(Debug, serde::Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum Event {
-    Midi { time: TimeInfo, data: MidiEvent },
-    Meta { time: TimeInfo, data: MetaEvent },
+    Midi { time: TimeInfo, data: MidiEvent, track: u32 },
+    Meta { time: TimeInfo, data: MetaEvent, track: u32 },
 }
 
 #[derive(Debug, serde::Serialize)]

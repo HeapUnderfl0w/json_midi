@@ -47,10 +47,10 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
     fn _next_event(&mut self, event: CDTrackEvent) -> PlayerResult<model::Event> {
         match event.event.kind {
-            midly::TrackEventKind::Midi { channel, message } => self.handle_midi(channel.as_int(), message, event.real_delta as u64),
-            midly::TrackEventKind::SysEx(data) => self.handle_sysex(data, event.real_delta as u64),
-            midly::TrackEventKind::Escape(data) => self.handle_escape(data, event.real_delta as u64),
-            midly::TrackEventKind::Meta(message) => self.handle_meta(message, event.real_delta as u64),
+            midly::TrackEventKind::Midi { channel, message } => self.handle_midi(event.source_track, channel.as_int(), message, event.real_delta as u64),
+            midly::TrackEventKind::SysEx(data) => self.handle_sysex(event.source_track, data, event.real_delta as u64),
+            midly::TrackEventKind::Escape(data) => self.handle_escape(event.source_track, data, event.real_delta as u64),
+            midly::TrackEventKind::Meta(message) => self.handle_meta(event.source_track, message, event.real_delta as u64),
         }
     }
 
@@ -80,7 +80,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
         }
     }
 
-    fn handle_midi(&mut self, channel: u8, message: midly::MidiMessage, delta: u64) -> PlayerResult<model::Event> {
+    fn handle_midi(&mut self, track: u32, channel: u8, message: midly::MidiMessage, delta: u64) -> PlayerResult<model::Event> {
         let converted_msg = match message {
             midly::MidiMessage::NoteOff { key, vel } => MidiEvent::NoteOff {
                 chan:     channel,
@@ -120,9 +120,9 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
 
         let time = self.make_time_info(delta);
 
-        PlayerResult::Event(model::Event::Midi { time, data: converted_msg })
+        PlayerResult::Event(model::Event::Midi { time, data: converted_msg, track })
     }
-    fn handle_meta(&mut self, message: midly::MetaMessage, delta: u64) -> PlayerResult<model::Event> {
+    fn handle_meta(&mut self, track: u32, message: midly::MetaMessage, delta: u64) -> PlayerResult<model::Event> {
         let parsed = match message {
             // normal meta messages, only emitted when emit_meta
             midly::MetaMessage::TrackNumber(tn) if self.emit_meta => Some(MetaEvent::TrackNumber(tn)),
@@ -160,7 +160,7 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
                 let time = self.make_time_info(delta);
                 self.timing.update_mpt(tpb.as_int());
                 if self.emit_meta {
-                    return PlayerResult::Event(model::Event::Meta { time, data: MetaEvent::Tempo(tpb.as_int()) });
+                    return PlayerResult::Event(model::Event::Meta { time, track, data: MetaEvent::Tempo(tpb.as_int()) });
                 } else {
                     return PlayerResult::Ignored;
                 }
@@ -177,47 +177,16 @@ impl<'data, 'smf> MidiPlayer<'data, 'smf> {
             },
             Some(event) => {
                 let time = self.make_time_info(delta);
-                PlayerResult::Event(model::Event::Meta { time, data: event })
+                PlayerResult::Event(model::Event::Meta { time, track, data: event })
             }
         }
     }
-    fn handle_escape(&mut self, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
+    fn handle_escape(&mut self, _track: u32, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
         self.extra_delta += delta;
         PlayerResult::Ignored
     }
-    fn handle_sysex(&mut self, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
+    fn handle_sysex(&mut self, _track: u32, _data: &[u8], delta: u64) -> PlayerResult<model::Event> {
         self.extra_delta += delta;
         PlayerResult::Ignored
     }
-
-    // pub fn next_event(&mut self) -> Option<PlayerResult<model::Event>> {
-    //     if let Some(event) = self.events.next() {
-    //         return match event.event.kind {
-    //             midly::TrackEventKind::Meta(midly::MetaMessage::EndOfTrack) => {
-    //                 // EndOfTrack messages are ignored
-    //                 self.extra_delta += event.real_delta as u64;
-    //                 Some(PlayerResult::Ignored)
-    //             },
-    //             midly::TrackEventKind::Meta(meta) => match self.handle_meta(event.real_delta as u64, meta) {
-    //                 PlayerResult::Event(mevent) => {
-    //                     let time = self.make_time_info(event.real_delta as u64);
-    //                     Some(PlayerResult::Event(model::Event::Meta {
-    //                         time,
-    //                         data: mevent,
-    //                     }))
-    //                 },
-    //                 PlayerResult::Ignored => {
-    //                     self.extra_delta += event.real_delta as u64;
-    //                     Some(PlayerResult::Ignored)
-    //                 },
-    //             },
-    //             _ => {
-    //                 // systex and escape messages are ignored
-    //                 self.extra_delta += event.real_delta as u64;
-    //                 Some(PlayerResult::Ignored)
-    //             },
-    //         };
-    //     }
-    //     None
-    // }
 }
