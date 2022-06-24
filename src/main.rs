@@ -38,13 +38,42 @@ struct Args {
     /// Dump the parsed object instead of scanning events
     #[structopt(long)]
     dump: bool,
+
+    #[structopt(long, name = "DEBUGF")]
+    debug: Option<String>
+}
+
+struct DbgWriter {
+    d: Option<std::fs::File>
+}
+
+impl DbgWriter {
+    pub fn n(v: Option<String>) -> Self {
+        Self {
+            d: v.map(|x| std::fs::File::create(x).expect("fatal: failed to create debug file"))
+        }
+    }
+
+    pub fn w(&mut self, t: &'static str, s: String) {
+        if let Some(f) = self.d.as_mut() {
+            let _ = writeln!(f, "############### {}", t);
+            let _ = writeln!(f, "{}", s);
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
 
+    let mut dbg = DbgWriter::n(args.debug.clone());
+    dbg.w("args", format!("{:#?}", args));
+
     let midi_file = fs::read(&args.midi_file).context("failed to read midi data into memory")?;
+    dbg.w("file", format!("read length {}", midi_file.len()));
+
     let smf = midly::Smf::parse(&midi_file).context("failed to parse midi file header")?;
+
+    dbg.w("midi.header", format!("{:#?}", smf.header));
 
     let stdout = io::stdout();
 
