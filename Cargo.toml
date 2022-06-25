@@ -10,7 +10,6 @@ ProductVersion = "0.1.1"
 LegalCopyright = "Copyright © 2022 HeapUnderflow"
 
 [features]
-default = ["strict-parsing"]
 strict-parsing = ["midly/strict"]
 
 [dependencies]
